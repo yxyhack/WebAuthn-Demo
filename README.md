@@ -20,7 +20,7 @@ Installation
 
 Clone the repository:
 
-bashCopygit clone https://github.com/yourusername/webauthn-demo.git
+bashCopygit clone [https://github.com/yourusername/webauthn-demo.git](https://github.com/yxyhack/WebAuthn-Demo.git)
 cd webauthn-demo
 
 Install dependencies:
