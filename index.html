@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>WebAuthn Demo</title>
+    <style>
+        .container { max-width: 800px; margin: 0 auto; padding: 20px; }
+        .form { margin-bottom: 20px; }
+        .form-group { margin-bottom: 10px; }
+        #status { margin-top: 20px; padding: 10px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="form">
+            <h2>注册</h2>
+            <div class="form-group">
+                <label>用户名:</label>
+                <input type="text" id="register-username">
+            </div>
+            <button onclick="register()">注册</button>
+        </div>
+
+        <div class="form">
+            <h2>登录</h2>
+            <div class="form-group">
+                <label>用户名:</label>
+                <input type="text" id="login-username">
+            </div>
+            <button onclick="login()">登录</button>
+        </div>
+    </div>
+
+    <div id="status"></div>
+
+    <script>
+        function debugLog(title, obj) {
+            console.group(title);
+            console.log(JSON.stringify(obj, null, 2));
+            console.groupEnd();
+        }
+
+        async function register() {
+            try {
+                const username = document.getElementById('register-username').value;
+                if (!username) {
+                    updateStatus('请输入用户名', 'error');
+                    return;
+                }
+
+                // 开始注册
+                console.log('=== 开始注册流程 ===');
+                const beginResponse = await fetch('http://localhost:8080/register/begin', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username })
+                });
+                const beginData = await beginResponse.json();
+                
+                debugLog('注册请求数据:', beginData);
+
+                if (beginData.error) {
+                    throw new Error(beginData.error);
+                }
+
+                // 创建凭证
+                const credential = await navigator.credentials.create({
+                    publicKey: {
+                        ...beginData.publicKey,
+                        challenge: base64urlToBuffer(beginData.publicKey.challenge),
+                        user: {
+                            ...beginData.publicKey.user,
+                            id: base64urlToBuffer(beginData.publicKey.user.id)
+                        }
+                    }
+                });
+
+                debugLog('创建的凭证:', {
+                    id: credential.id,
+                    type: credential.type,
+                    rawId: bufferToBase64url(credential.rawId),
+                    response: {
+                        attestationObject: bufferToBase64url(credential.response.attestationObject),
+                        clientDataJSON: bufferToBase64url(credential.response.clientDataJSON)
+                    }
+                });
+
+                // 完成注册
+                const completeResponse = await fetch('http://localhost:8080/register/complete', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        username,
+                        credential: {
+                            id: credential.id,
+                            rawId: bufferToBase64url(credential.rawId),
+                            type: credential.type,
+                            response: {
+                                attestationObject: bufferToBase64url(credential.response.attestationObject),
+                                clientDataJSON: bufferToBase64url(credential.response.clientDataJSON)
+                            }
+                        }
+                    })
+                });
+
+                const completeData = await completeResponse.json();
+                debugLog('注册完成响应:', completeData);
+
+                if (completeData.error) {
+                    throw new Error(completeData.error);
+                }
+
+                updateStatus('注册成功！', 'success');
+                console.log('=== 注册流程完成 ===');
+
+            } catch (error) {
+                console.error('注册错误:', error);
+                updateStatus('注册失败: ' + error.message, 'error');
+            }
+        }
+
+        async function login() {
+            try {
+                const username = document.getElementById('login-username').value;
+                if (!username) {
+                    updateStatus('请输入用户名', 'error');
+                    return;
+                }
+
+                // 开始认证
+                console.log('=== 开始登录流程 ===');
+                const beginResponse = await fetch('http://localhost:8080/authenticate/begin', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username })
+                });
+                const beginData = await beginResponse.json();
+                
+                debugLog('登录请求数据:', beginData);
+
+                if (beginData.error) {
+                    throw new Error(beginData.error);
+                }
+
+                // 获取凭证
+                const credential = await navigator.credentials.get({
+                    publicKey: {
+                        ...beginData.publicKey,
+                        challenge: base64urlToBuffer(beginData.publicKey.challenge),
+                        allowCredentials: beginData.publicKey.allowCredentials.map(cred => ({
+                            ...cred,
+                            id: base64urlToBuffer(cred.id)
+                        }))
+                    }
+                });
+
+                debugLog('获取的凭证:', {
+                    id: credential.id,
+                    type: credential.type,
+                    rawId: bufferToBase64url(credential.rawId),
+                    response: {
+                        authenticatorData: bufferToBase64url(credential.response.authenticatorData),
+                        clientDataJSON: bufferToBase64url(credential.response.clientDataJSON),
+                        signature: bufferToBase64url(credential.response.signature)
+                    }
+                });
+
+                // 完成认证
+                const completeResponse = await fetch('http://localhost:8080/authenticate/complete', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        username,
+                        credential: {
+                            id: credential.id,
+                            rawId: bufferToBase64url(credential.rawId),
+                            type: credential.type,
+                            response: {
+                                authenticatorData: bufferToBase64url(credential.response.authenticatorData),
+                                clientDataJSON: bufferToBase64url(credential.response.clientDataJSON),
+                                signature: bufferToBase64url(credential.response.signature)
+                            }
+                        }
+                    })
+                });
+
+                const completeData = await completeResponse.json();
+                debugLog('登录完成响应:', completeData);
+
+                if (completeData.error) {
+                    throw new Error(completeData.error);
+                }
+
+                updateStatus(completeData.message, 'success');
+                console.log('=== 登录流程完成 ===');
+
+            } catch (error) {
+                console.error('登录错误:', error);
+                updateStatus('登录失败: ' + error.message, 'error');
+            }
+        }
+
+        function updateStatus(message, type) {
+            const status = document.getElementById('status');
+            status.textContent = message;
+            status.style.backgroundColor = type === 'error' ? '#ffebee' : '#e8f5e9';
+            status.style.color = type === 'error' ? '#c62828' : '#2e7d32';
+        }
+
+        function base64urlToBuffer(base64url) {
+            const padding = '='.repeat((4 - base64url.length % 4) % 4);
+            const base64 = base64url.replace(/-/g, '+').replace(/_/g, '/') + padding;
+            const str = atob(base64);
+            const buffer = new ArrayBuffer(str.length);
+            const byteView = new Uint8Array(buffer);
+            for (let i = 0; i < str.length; i++) {
+                byteView[i] = str.charCodeAt(i);
+            }
+            return buffer;
+        }
+
+        function bufferToBase64url(buffer) {
+            const bytes = new Uint8Array(buffer);
+            let str = '';
+            for (const byte of bytes) {
+                str += String.fromCharCode(byte);
+            }
+            const base64 = btoa(str);
+            return base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+        }
+    </script>
+</body>
+</html>
