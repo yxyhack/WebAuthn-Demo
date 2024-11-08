@@ -30,7 +30,7 @@ Running the Demo
 
 Start the Flask server:
 
-bashCopypython PWA_server.py
+python PWA_server.py
 
 Open index.html in your browser or serve it using a local HTTP server
 The server will run on http://localhost:8080
@@ -71,10 +71,7 @@ Simple UI for demonstration purposes
 
 Security Notes
 
-This is a demonstration implementation and should not be used in production without proper security hardening
-User credentials are stored in memory and will be lost when the server restarts
-The implementation uses 'none' attestation for simplicity
-No database persistence is implemented
+This is a demonstration project that implements the WebAuthn protocol flow but does not include actual public-key cryptography verification. The authentication is simulated by verifying only the challenge value. For a production implementation, you would need to properly verify the authenticator's signatures and implement complete public-key cryptography verification.
 
 Debug Information
 Both frontend and backend provide detailed logging:
